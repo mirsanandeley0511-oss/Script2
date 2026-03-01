@@ -1,0 +1,261 @@
+-- 🌟 UNIVERSAL HUB MOBILE OPTIMIZED (Delta 2026) - Aimbot + Fly + ESP + FOV Arcoíris
+-- Para móviles: GUI touch-friendly, Fly con botones, FOV ajustable
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local Teams = game:GetService("Teams")
+local Camera = workspace.CurrentCamera
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()  -- En mobile usa touch approx
+
+-- Variables
+local aimbotEnabled = false
+local flyEnabled = false
+local espEnabled = false
+local fullbrightEnabled = false
+local drawings = {}
+local flySpeed = 40  -- Más bajo para mobile control
+local fov = 180  -- Inicial más grande para mobile
+local aimSmooth = 0.15  -- Más suave en touch
+
+-- Fullbright
+local fbInfo = {Brightness = Lighting.Brightness, FogEnd = Lighting.FogEnd, GlobalShadows = Lighting.GlobalShadows, Ambient = Lighting.Ambient}
+local function toggleFullbright(state)
+    Lighting.Brightness = state and 3 or fbInfo.Brightness
+    Lighting.FogEnd = state and 9e9 or fbInfo.FogEnd
+    Lighting.GlobalShadows = not state
+    Lighting.Ambient = state and Color3.fromRGB(255,255,255) or fbInfo.Ambient
+end
+
+-- Rainbow
+local function getRainbowColor()
+    return Color3.fromHSV((tick() * 0.4) % 1, 1, 1)
+end
+
+-- GUI Touch-Friendly (Botón flotante + Frame grande)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MobileUniversalHub"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
+
+-- Botón flotante para abrir GUI
+local floatBtn = Instance.new("TextButton")
+floatBtn.Size = UDim2.new(0, 80, 0, 80)
+floatBtn.Position = UDim2.new(0.05, 0, 0.8, 0)
+floatBtn.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+floatBtn.Text = "HUB"
+floatBtn.TextColor3 = Color3.white
+floatBtn.TextScaled = true
+floatBtn.Font = Enum.Font.GothamBold
+floatBtn.Parent = screenGui
+local corner = Instance.new("UICorner", floatBtn)
+corner.CornerRadius = UDim.new(1, 0)  -- Circular
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0.7, 0, 0.8, 0)
+mainFrame.Position = UDim2.new(0.15, 0, 0.1, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 15)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 60)
+title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+title.Text = "Mobile Universal Hub 🔥"
+title.TextColor3 = Color3.white
+title.TextScaled = true
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+-- Función toggle botón
+local function createToggle(name, posY, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 60)
+    btn.Position = UDim2.new(0.05, 0, 0, posY)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Text = name .. ": OFF"
+    btn.TextColor3 = Color3.fromRGB(255, 100, 100)
+    btn.TextScaled = true
+    btn.Font = Enum.Font.Gotham
+    btn.Parent = mainFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+    
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.Text = name .. ": " .. (state and "ON" or "OFF")
+        btn.TextColor3 = state and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(60, 60, 60)
+        callback(state)
+    end)
+    return btn
+end
+
+createToggle("Aimbot Enemigos", 70, function(s) aimbotEnabled = s end)
+createToggle("Fly (Joystick + Up/Down)", 140, function(s) flyEnabled = s end)
+createToggle("ESP Enemigos", 210, function(s) espEnabled = s end)
+createToggle("Fullbright", 280, function(s) fullbrightEnabled = s toggleFullbright(s) end)
+
+-- FOV Controls
+local fovLabel = Instance.new("TextLabel")
+fovLabel.Size = UDim2.new(0.9, 0, 0, 50)
+fovLabel.Position = UDim2.new(0.05, 0, 0, 350)
+fovLabel.BackgroundTransparency = 1
+fovLabel.Text = "FOV Arcoíris: 180"
+fovLabel.TextColor3 = Color3.white
+fovLabel.TextScaled = true
+fovLabel.Parent = mainFrame
+
+local plusBtn = Instance.new("TextButton")
+plusBtn.Size = UDim2.new(0.4, 0, 0, 50)
+plusBtn.Position = UDim2.new(0.05, 0, 0, 410)
+plusBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+plusBtn.Text = "+ FOV"
+plusBtn.TextColor3 = Color3.white
+plusBtn.TextScaled = true
+plusBtn.Parent = mainFrame
+Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 10)
+plusBtn.MouseButton1Click:Connect(function()
+    fov = math.min(fov + 30, 600)
+    fovLabel.Text = "FOV Arcoíris: " .. fov
+end)
+
+local minusBtn = Instance.new("TextButton")
+minusBtn.Size = UDim2.new(0.4, 0, 0, 50)
+minusBtn.Position = UDim2.new(0.55, 0, 0, 410)
+minusBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+minusBtn.Text = "- FOV"
+minusBtn.TextColor3 = Color3.white
+minusBtn.TextScaled = true
+minusBtn.Parent = mainFrame
+Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 10)
+minusBtn.MouseButton1Click:Connect(function()
+    fov = math.max(fov - 30, 60)
+    fovLabel.Text = "FOV Arcoíris: " .. fov
+end)
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0.9, 0, 0, 60)
+closeBtn.Position = UDim2.new(0.05, 0, 0, 480)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "Cerrar"
+closeBtn.TextColor3 = Color3.white
+closeBtn.TextScaled = true
+closeBtn.Parent = mainFrame
+closeBtn.MouseButton1Click:Connect(function() mainFrame.Visible = false end)
+
+-- Abrir GUI con botón flotante
+floatBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Is Enemy
+local function isEnemy(plr)
+    if plr == player then return false end
+    if plr.Team and player.Team then return plr.Team \~= player.Team end
+    return true
+end
+
+-- Aimbot mobile-friendly (smooth + check)
+local function getClosestEnemy()
+    local closest, dist = nil, math.huge
+    for _, plr in pairs(Players:GetPlayers()) do
+        if isEnemy(plr) and plr.Character and plr.Character:FindFirstChild("Head") then
+            local head = plr.Character.Head
+            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)  -- Centro para mobile
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                if distance < fov and distance < dist then
+                    closest = head
+                    dist = distance
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    if aimbotEnabled then
+        local target = getClosestEnemy()
+        if target then
+            local targetPos = Camera:WorldToViewportPoint(target.Position)
+            local current = Camera.CFrame
+            local newCFrame = CFrame.new(current.Position, target.Position)
+            Camera.CFrame = current:Lerp(newCFrame, aimSmooth)
+        end
+    end
+end)
+
+-- FOV Circle Rainbow
+local fovCircle = Drawing.new("Circle")
+fovCircle.Radius = fov
+fovCircle.Color = Color3.fromRGB(255,0,0)
+fovCircle.Thickness = 4
+fovCircle.NumSides = 40
+fovCircle.Filled = false
+fovCircle.Transparency = 0.7
+
+RunService.RenderStepped:Connect(function()
+    fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)  -- Centro pantalla mobile
+    fovCircle.Radius = fov
+    fovCircle.Color = getRainbowColor()
+    fovCircle.Visible = aimbotEnabled
+end)
+
+-- Fly Mobile (BodyVelocity + dirección joystick)
+local bodyVelocity = nil
+RunService.Heartbeat:Connect(function()
+    if flyEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local root = player.Character.HumanoidRootPart
+        if not bodyVelocity then
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVelocity.Parent = root
+        end
+        local direction = Vector3.new(0,0,0)
+        local camLook = Camera.CFrame.LookVector
+        local camRight = Camera.CFrame.RightVector
+        -- Mobile joystick approx (puedes bindear touch si quieres avanzado)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService.TouchEnabled then direction = direction + camLook * flySpeed end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - camLook * flySpeed end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - camRight * flySpeed end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + camRight * flySpeed end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0, flySpeed, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0, flySpeed, 0) end
+        bodyVelocity.Velocity = direction
+    elseif bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+end)
+
+-- ESP simple (solo enemigos, menos lag)
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+    for _, plr in pairs(Players:GetPlayers()) do
+        if isEnemy(plr) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local root = plr.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            if onScreen then
+                local tracer = Drawing.new("Line")
+                tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                tracer.To = Vector2.new(pos.X, pos.Y)
+                tracer.Color = Color3.fromRGB(255,0,0)
+                tracer.Thickness = 2
+                tracer.Visible = true
+                -- Auto remove después (para no acumular)
+                task.delay(0.03, function() tracer:Remove() end)
+            end
+        end
+    end
+end)
+
+print("🚀 Mobile Hub Cargado! Toca el botón 'HUB' azul para abrir. Ajusta FOV con + / -")
+print("⚠️ Usa cuenta alt - riesgo ban en Roblox 2026")
